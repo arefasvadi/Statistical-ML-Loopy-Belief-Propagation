@@ -23,12 +23,14 @@ using VARS_T = int;
 using MESSAGE_T = map<int, double>;
 
 struct Singleton;
+
 struct Cluster {
 	int index;
 	map<int, shared_ptr<Singleton> > single_neighb;
 	map<int, shared_ptr<MESSAGE_T> > incoming_messages;
 
 	void initialize_messages();
+
 	void send_messages();
 };
 
@@ -39,7 +41,9 @@ struct Singleton {
 	map<int, shared_ptr<MESSAGE_T> > incoming_messages;
 
 	void initializeBeliefs();
+
 	void initialize_messages();
+
 	void send_messages();
 };
 
@@ -64,22 +68,22 @@ void Cluster::send_messages() {
 					for (int k = 0; k < col_size; ++k) {
 						if (k != itr_index) {
 							int temp = ((int) (j / pow(total_colors, col_size - 1 - k))) % total_colors;
-							if (seen_sofar.find(temp+1) != seen_sofar.end()) {
+							if (seen_sofar.find(temp + 1) != seen_sofar.end()) {
 								//there is another edge with the same color!
 								multiplier = 0.0;
 								break;
 							} else {
-								seen_sofar.insert(temp+1);
+								seen_sofar.insert(temp + 1);
 								//multiplies by beliefs of other variables
 								multiplier *= (next(single_neighb.begin(), k)->second->belief[i]);
-								multiplier *= incoming_messages.at(next(single_neighb.begin(), k)->first)->at(temp+1);
+								multiplier *= incoming_messages.at(next(single_neighb.begin(), k)->first)->at(temp + 1);
 							}
 						}
 					}
 					sum += multiplier;
 				}
 			}
-			message->at(i+1) = norm_factor * sum;
+			message->at(i + 1) = norm_factor * sum;
 		}
 		++itr;
 		++itr_index;
