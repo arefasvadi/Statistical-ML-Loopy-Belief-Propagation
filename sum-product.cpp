@@ -22,7 +22,7 @@ using ADJACENCY_T = vector<vector<int> >;
 using VARS_T = int;
 struct table;
 using TABLE_T = map<int, shared_ptr<table> >;
-using TABLE_V = map<int,double >;
+using TABLE_V = map<int, double>;
 using MESSAGE_T = map<int, double>;
 struct table {
 	shared_ptr<map<int, shared_ptr<table> >> next;
@@ -62,39 +62,37 @@ struct Cluster {
 		auto itr = single_neighb.begin();
 		uint32_t itr_index = 0;
 		int col_size = single_neighb.size();
-		uint64_t all_possibilities = pow(total_colors,col_size);
+		uint64_t all_possibilities = pow(total_colors, col_size);
 		//for each variable
 		while (itr != single_neighb.end()) {
 			auto &message = itr->second->incoming_messages.at(index); //the message that needs to be updated!
 			//loops through possible values for evidence message
 			for (int i = 0; i < total_colors; ++i) {
 				set<int> seen_sofar;
-				seen_sofar.insert((i+1));
+				seen_sofar.insert((i + 1));
 				double sum = 0.0;
 				//finding conforming rows with value equivalent to evidence
 				for (int j = 0; j < all_possibilities; ++j) {
-					if(((int)(j/pow(total_colors,col_size-1-itr_index))) % total_colors == i){
+					if (((int) (j / pow(total_colors, col_size - 1 - itr_index))) % total_colors == i) {
 						//this is where the condition is met;
 						double multiplier = itr->second->belief[i];
-						for(int k=0;k<col_size;++k) {
-							if(k != itr_index) {
+						for (int k = 0; k < col_size; ++k) {
+							if (k != itr_index) {
 								int temp = ((int) (j / pow(total_colors, col_size - 1 - k))) % total_colors;
-								if(seen_sofar.find(temp) != seen_sofar.end()){
+								if (seen_sofar.find(temp) != seen_sofar.end()) {
 									//there is another edge with the same color!
 									multiplier = 0.0;
 									break;
-								}
-								else {
+								} else {
 									seen_sofar.insert(temp);
-									multiplier *= (next(single_neighb.begin(),k)->second->belief[i]);
+									multiplier *= (next(single_neighb.begin(), k)->second->belief[i]);
 								}
 							}
 						}
 						sum += multiplier;
-
 					}
-					message->at(i) = norm_factor * sum;
 				}
+				message->at(i) = norm_factor * sum;
 			}
 			++itr;
 			++itr_index;
