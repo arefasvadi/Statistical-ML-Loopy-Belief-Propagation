@@ -9,6 +9,7 @@
 #include <map>
 #include <tuple>
 #include <cmath>
+#include <set>
 
 using namespace std;
 
@@ -19,12 +20,13 @@ const static double norm_factor = 0.01;
 
 using ADJACENCY_T = vector<vector<int> >;
 using VARS_T = int;
-union table;
-using TABLE_T = map<int, table>;
+struct table;
+using TABLE_T = map<int, shared_ptr<table> >;
+using TABLE_V = map<int,double >;
 using MESSAGE_T = map<int, double>;
-union table {
-	shared_ptr<TABLE_T> table;
-	double value;
+struct table {
+	shared_ptr<map<int, shared_ptr<table> >> next;
+	int indicator = 0;
 };
 struct Singleton;
 
@@ -32,14 +34,17 @@ struct Cluster {
 	int index;
 	map<int, shared_ptr<Singleton> > single_neighb;
 	map<int, shared_ptr<MESSAGE_T> > incoming_messages;
+//	TABLE_T factor_mult;
+//	vector<int> factors_val;
+
 
 	void initialize_messages() {
-		//set outgoing messages to 1 for every outgoing message!
+		//set incoming messages to 1 for every outgoing message!
 		auto itr = single_neighb.begin();
-		while(itr != single_neighb.end()){
+		while (itr != single_neighb.end()) {
 			incoming_messages[itr->first] = make_shared<MESSAGE_T>();
 			auto &message = incoming_messages[itr->first];
-			for(int i=1;i<= total_colors; ++i) {
+			for (int i = 1; i <= total_colors; ++i) {
 				//setting every messages beliefs to 1 in the beginning
 				message->at(i) = 1.0;
 			}
@@ -47,23 +52,52 @@ struct Cluster {
 		}
 	}
 
-	void send_messages(){
+	/*void initialize_factor_beliefs() {
+		int col_size = single_neighb.size();
+		factors_val.resize(pow(total_colors,col_size));
+		fill(factors_val.begin(),factors_val.end(),0);
+	}*/
+
+	void send_messages() {
 		auto itr = single_neighb.begin();
-		while(itr != single_neighb.end()){
-			auto &message = itr->second->incoming_messages.at(itr->first);
-			for (int i = 1; i < total_colors; ++i) {
-				//Now loop through incoming messages
-				double temp = 1.0;
-				auto incom_itr = incoming_messages.begin();
-				while(incom_itr != incoming_messages.end()){
-					if(incom_itr->first != itr->first){
-						temp *= incom_itr->second->at(i);
+		uint32_t itr_index = 0;
+		int col_size = single_neighb.size();
+		uint64_t all_possibilities = pow(total_colors,col_size);
+		//for each variable
+		while (itr != single_neighb.end()) {
+			auto &message = itr->second->incoming_messages.at(index); //the message that needs to be updated!
+			//loops through possible values for evidence message
+			for (int i = 0; i < total_colors; ++i) {
+				set<int> seen_sofar;
+				seen_sofar.insert((i+1));
+				double sum = 0.0;
+				//finding conforming rows with value equivalent to evidence
+				for (int j = 0; j < all_possibilities; ++j) {
+					if(((int)(j/pow(total_colors,col_size-1-itr_index))) % total_colors == i){
+						//this is where the condition is met;
+						double multiplier = itr->second->belief[i];
+						for(int k=0;k<col_size;++k) {
+							if(k != itr_index) {
+								int temp = ((int) (j / pow(total_colors, col_size - 1 - k))) % total_colors;
+								if(seen_sofar.find(temp) != seen_sofar.end()){
+									//there is another edge with the same color!
+									multiplier = 0.0;
+									break;
+								}
+								else {
+									seen_sofar.insert(temp);
+									multiplier *= (next(single_neighb.begin(),k)->second->belief[i]);
+								}
+							}
+						}
+						sum += multiplier;
+
 					}
-					++incom_itr;
+					message->at(i) = norm_factor * sum;
 				}
-				message->at(i) = norm_factor * belief[i] * temp;
 			}
 			++itr;
+			++itr_index;
 		}
 	}
 };
@@ -71,7 +105,7 @@ struct Cluster {
 struct Singleton {
 	int index;
 	//vector<shared_ptr<Cluster> > clust_neighb;
-	map<int,shared_ptr<Cluster> > clust_neighb;
+	map<int, shared_ptr<Cluster> > clust_neighb;
 	map<int, double> belief;
 	map<int, shared_ptr<MESSAGE_T> > incoming_messages;
 
@@ -82,12 +116,12 @@ struct Singleton {
 	}
 
 	void initialize_messages() {
-		//set outgoing messages to 1 for every outgoing message!
+		//set incoming messages to 1 for every outgoing message!
 		auto itr = clust_neighb.begin();
-		while(itr != clust_neighb.end()){
+		while (itr != clust_neighb.end()) {
 			incoming_messages[itr->first] = make_shared<MESSAGE_T>();
 			auto &message = incoming_messages[itr->first];
-			for(int i=1;i<= total_colors; ++i) {
+			for (int i = 1; i <= total_colors; ++i) {
 				//setting every messages beliefs to 1 in the beginning
 				message->at(i) = 1.0;
 			}
@@ -95,16 +129,16 @@ struct Singleton {
 		}
 	}
 
-	void send_messages(){
+	void send_messages() {
 		auto itr = clust_neighb.begin();
-		while(itr != clust_neighb.end()){
-			auto &message = itr->second->incoming_messages.at(itr->first);
+		while (itr != clust_neighb.end()) {
+			auto &message = itr->second->incoming_messages.at(index);
 			for (int i = 1; i < total_colors; ++i) {
 				//Now loop through incoming messages
 				double temp = 1.0;
 				auto incom_itr = incoming_messages.begin();
-				while(incom_itr != incoming_messages.end()){
-					if(incom_itr->first != itr->first){
+				while (incom_itr != incoming_messages.end()) {
+					if (incom_itr->first != itr->first) {
 						temp *= incom_itr->second->at(i);
 					}
 					++incom_itr;
@@ -167,7 +201,7 @@ ALL_BELIEFS prepare_beliefs(ADJACENCY_T &adjacency) {
 					auto vert_single = make_shared<Singleton>();
 					singletons.push_back(vert_single);
 					vert_single->index = ++total_edges;
-					vert_single->clust_neighb[vert_clust->index] =  vert_clust;
+					vert_single->clust_neighb[vert_clust->index] = vert_clust;
 					edge_map[i][j] = vert_single;
 					vert_clust->single_neighb[vert_single->index] = vert_single;
 
