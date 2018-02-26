@@ -14,7 +14,7 @@
 using namespace std;
 
 static int total_colors = 3;
-static int iterations = 100;
+static int iterations = 1000;
 static vector<double> color_weights = {1, 2, 3};
 const static double norm_factor = 0.0001;
 
@@ -288,8 +288,41 @@ double compute_sum_product(ALL_BELIEFS &all_beliefs, vector<double> &color_weigh
 		clusters[i]->finalize_beliefs();
 	}
 
-
-
+	//start computing the bethe free energy
+	double entropy_q = 0.0;
+	for (int i = 0; i < singletons.size(); i++) {
+		for (int j = 0; j < total_colors; j++) {
+			if (singletons[i]->belief[j] == 0.0) {
+				continue;
+			}
+			entropy_q += singletons[i]->belief[j] * log(singletons[i]->belief[j]);
+		}
+	}
+	for (int i = 0; i < clusters.size(); ++i) {
+		int col_size = clusters[i]->single_neighb.size();
+		uint64_t possibilities = pow(total_colors, col_size);
+		for (int j = 0; j < possibilities; ++j) {
+			double temp = clusters[i]->belief[j];
+			if (temp == 0) {
+				continue;
+			}
+			set<int> seen_sofar;
+			for (int k = 0; k < col_size; ++k) {
+				int val = ((int) (j / pow(total_colors, col_size - 1 - k))) % total_colors;
+				auto itr = clusters[i]->single_neighb.begin();
+				double denom = 1.0;
+				while(itr != clusters[i]->single_neighb.end()){
+					if(itr->first == (k+1)){
+						denom*=itr->second->belief[val+1];
+					}
+					++itr;
+				}
+				temp = temp * log((temp/denom));
+			}
+			entropy_q += temp;
+		}
+	}
+	entropy_q *= (-1.0);
 	return 0.0;
 }
 
