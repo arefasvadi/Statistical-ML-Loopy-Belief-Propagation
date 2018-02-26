@@ -28,10 +28,13 @@ struct Cluster {
 	int index;
 	map<int, shared_ptr<Singleton> > single_neighb;
 	map<int, shared_ptr<MESSAGE_T> > incoming_messages;
+	vector<double> belief;
 
 	void initialize_messages();
 
 	void send_messages();
+
+	void finalize_beliefs();
 };
 
 struct Singleton {
@@ -45,7 +48,23 @@ struct Singleton {
 	void initialize_messages();
 
 	void send_messages();
+
+	void finalize_beliefs();
 };
+
+void Cluster::initialize_messages() {
+	//set incoming messages to 1 for every outgoing message!
+	auto itr = single_neighb.begin();
+	while (itr != single_neighb.end()) {
+		incoming_messages[itr->first] = make_shared<MESSAGE_T>();
+		auto &message = incoming_messages[itr->first];
+		for (int i = 1; i <= total_colors; ++i) {
+			//setting every messages beliefs to 1 in the beginning
+			message->at(i) = 1.0;
+		}
+		++itr;
+	}
+}
 
 void Cluster::send_messages() {
 	auto itr = single_neighb.begin();
@@ -64,7 +83,9 @@ void Cluster::send_messages() {
 			for (int j = 0; j < all_possibilities; ++j) {
 				if (((int) (j / pow(total_colors, col_size - 1 - itr_index))) % total_colors == i) {
 					//this is where the condition is met;
-					double multiplier = itr->second->belief[i];
+					//TODO: if not indicator uncomment
+					//double multiplier = itr->second->belief[i];
+					double multiplier = 1.0;
 					for (int k = 0; k < col_size; ++k) {
 						if (k != itr_index) {
 							int temp = ((int) (j / pow(total_colors, col_size - 1 - k))) % total_colors;
@@ -75,7 +96,8 @@ void Cluster::send_messages() {
 							} else {
 								seen_sofar.insert(temp + 1);
 								//multiplies by beliefs of other variables
-								multiplier *= (next(single_neighb.begin(), k)->second->belief[i]);
+								//TODO: if not indicator uncomment
+								//multiplier *= (next(single_neighb.begin(), k)->second->belief[i]);
 								multiplier *= incoming_messages.at(next(single_neighb.begin(), k)->first)->at(temp + 1);
 							}
 						}
@@ -90,17 +112,28 @@ void Cluster::send_messages() {
 	}
 }
 
-void Cluster::initialize_messages() {
-	//set incoming messages to 1 for every outgoing message!
-	auto itr = single_neighb.begin();
-	while (itr != single_neighb.end()) {
-		incoming_messages[itr->first] = make_shared<MESSAGE_T>();
-		auto &message = incoming_messages[itr->first];
-		for (int i = 1; i <= total_colors; ++i) {
-			//setting every messages beliefs to 1 in the beginning
-			message->at(i) = 1.0;
+void Cluster::finalize_beliefs() {
+	int col_size = single_neighb.size();
+	belief.resize(pow(total_colors, col_size));
+	for (int i = 0; i < belief.size(); ++i) {
+		set<int> seen_sofar;
+		double val = 1.0;
+		for (int k = 0; k < col_size; ++k) {
+			int temp = ((int) (i / pow(total_colors, col_size - 1 - k))) % total_colors;
+			if (seen_sofar.find(temp + 1) != seen_sofar.end()) {
+				//there is another edge with the same color!
+				val = 0.0;
+				belief[i] = 0.0;
+				break;
+			} else {
+				seen_sofar.insert(temp + 1);
+				//multiplies by beliefs of other variables
+				//TODO: if not indicator uncomment
+				//val *= (next(single_neighb.begin(), k)->second->belief[temp+1]);
+				val *= incoming_messages.at(next(single_neighb.begin(), k)->first)->at(temp + 1);
+			}
 		}
-		++itr;
+		belief[i] = norm_factor * val;
 	}
 }
 
@@ -142,6 +175,18 @@ void Singleton::send_messages() {
 		}
 		++itr;
 	}
+}
+
+void Singleton::finalize_beliefs() {
+	for (int i = 1; i <= belief.size(); ++i) {
+		belief[i] = norm_factor * belief[i];
+		auto incom_itr = incoming_messages.begin();
+		while (incom_itr != incoming_messages.end()) {
+			belief[i] *= incom_itr->second->at(i);
+			++incom_itr;
+		}
+	}
+
 }
 
 using ALL_BELIEFS = struct AllBeliefs {
@@ -215,7 +260,34 @@ ALL_BELIEFS prepare_beliefs(ADJACENCY_T &adjacency) {
 }
 
 double compute_sum_product(ALL_BELIEFS &all_beliefs, vector<double> &color_weights,
-													 int total_colors, int interations) {
+													 int total_colors, int iterations) {
+
+	vector<shared_ptr<Cluster> > &clusters = all_beliefs.clusters;
+	vector<shared_ptr<Singleton> > &singletons = all_beliefs.singletons;
+
+	for (int i = 0; i < singletons.size(); i++) {
+		singletons[i]->initializeBeliefs();
+		singletons[i]->initialize_messages();
+	}
+	for (int i = 0; i < clusters.size(); i++) {
+		clusters[i]->initialize_messages();
+	}
+	for (int it = 0; it < iterations; ++it) {
+		for (int i = 0; i < singletons.size(); i++) {
+			singletons[i]->send_messages();
+		}
+		for (int i = 0; i < clusters.size(); i++) {
+			clusters[i]->send_messages();
+		}
+	}
+
+	for (int i = 0; i < singletons.size(); i++) {
+		singletons[i]->finalize_beliefs();
+	}
+	for (int i = 0; i < clusters.size(); i++) {
+		clusters[i]->finalize_beliefs();
+	}
+
 
 
 	return 0.0;
