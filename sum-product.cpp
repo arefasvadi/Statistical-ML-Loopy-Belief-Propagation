@@ -19,7 +19,6 @@ static vector<double> color_weights = {1, 2, 3};
 const static double norm_factor = 0.0001;
 
 using ADJACENCY_T = vector<vector<int> >;
-//using VARS_T = int;
 using MESSAGE_T = map<int, double>;
 
 struct Singleton;
@@ -117,15 +116,13 @@ void Cluster::finalize_beliefs() {
   for (int k = 0; k < col_size; ++k) {
    int temp = ((int) (i / pow(total_colors, col_size - 1 - k))) % total_colors;
    if (seen_sofar.find(temp + 1) != seen_sofar.end()) {
-    //there is another edge with the same color!
-    val = 0.0;
+    val = 0.0;//there is another edge with the same color!
     belief[i] = 0.0;
     break;
    } else {
     seen_sofar.insert(temp + 1);
     //multiplies by beliefs of other variables
-    //TODO: if not indicator uncomment
-    //val *= (next(single_neighb.begin(), k)->second->belief[temp+1]);
+    //val *= (next(single_neighb.begin(), k)->second->belief[temp+1]);//TODO: if not indicator uncomment
     val *= incoming_messages.at(next(single_neighb.begin(), k)->first)->at(temp + 1);
    }
   }
@@ -182,7 +179,6 @@ void Singleton::finalize_beliefs() {
    ++incom_itr;
   }
  }
- 
 }
 
 using ALL_BELIEFS = struct AllBeliefs {
@@ -269,6 +265,7 @@ double compute_sum_product(ALL_BELIEFS &all_beliefs, vector<double> &color_weigh
   clusters[i]->initialize_messages();
  }
  for (int it = 0; it < iterations; ++it) {
+  cout << "Running iteration: "+to_string(it+1)+"\n";
   for (int i = 0; i < singletons.size(); i++) {
    singletons[i]->send_messages();
   }
