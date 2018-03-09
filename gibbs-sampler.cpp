@@ -12,12 +12,13 @@
 #include <set>
 #include <array>
 #include <cassert>
+#include <random>
 
 using namespace std;
 
-static constexpr int total_colors = 3;
-static constexpr int iterations = 1000;
-static constexpr int burn_in = 5000;
+static int total_colors = 3;
+static int iterations = 1000;
+static int burn_in = 5000;
 static vector<double> color_weights = {1, 2, 3};
 
 using Edge_t = pair<int, int>;
@@ -68,65 +69,14 @@ shared_ptr<map<Edge_t, int, EdgeCompare_t> > find_suitable_sample() {
           });
  bool perm_found = false;
  auto edge_coloring = make_shared<map<Edge_t, int, EdgeCompare_t> >();
-/* do {
-  auto edge_itr = graph->begin();
-  vector<int> temp_colors(all_colors.size());
-  copy(all_colors.begin(), all_colors.end(), temp_colors.begin());
-  while (edge_itr != graph->end()) {
-   int current_color = all_colors.back();
-   bool neighbour_has_it = false;
-   auto edge_coloring_itr = edge_coloring->begin();
-   while (edge_coloring_itr != edge_coloring->end()) {
-    if (edge_coloring_itr->first.first != edge_itr->first
-        && edge_coloring_itr->first.second != edge_itr->second) { // check to see it's not the same
-     if (edge_itr->first == edge_coloring_itr->first.first
-         || edge_itr->first == edge_coloring_itr->first.second
-         || edge_itr->second == edge_coloring_itr->first.first
-         || edge_itr->second == edge_coloring_itr->first.second) {
-      //its neighbour
-      if (edge_coloring_itr->second == current_color) {
-       neighbour_has_it = true;
-       break;
-      }
-     }
-    }
-    ++edge_coloring_itr;
-   }
-   if (!neighbour_has_it) {
-    (*edge_coloring)[Edge_t{edge_itr->first,edge_itr->second}] = current_color;
-    temp_colors.pop_back();
-    if (edge_coloring->size() == graph->size()) {
-     perm_found = true;
-     break;
-    }
-   }
-   ++edge_itr;
-  }
- } while (next_permutation(all_colors.begin(), all_colors.end()) && !perm_found);
- if(perm_found){
-  cout << "First sample found:\n";
-  for(const auto &edge:*edge_coloring){
-   cout << edge.first.first << "to " << edge.first.second << "is: " << edge.second <<"\n";
-  }
- }*/
-
- //test
-/* (*edge_coloring)[Edge_t{1,2}] = 3;
- if(edge_coloring->find(Edge_t{3,1}) != edge_coloring->end()){
-  cout << "found!\n";
- }*/
- //test
  auto edge_itr = graph->begin();
- while(!perm_found){
-/*  if(edge_coloring->find(*edge_itr) != edge_coloring->end()){
-   continue;
-  }*/
+ while (!perm_found) {
   //find this nodes neighbours
-  vector<Graph_t ::iterator> neighbours;
-  for(Graph_t::iterator inner_edge_itr = graph->begin();inner_edge_itr!=graph->end();++inner_edge_itr){
-   if (!(inner_edge_itr->first == edge_itr->first && inner_edge_itr->second == edge_itr->second)){
+  vector<Graph_t::iterator> neighbours;
+  for (Graph_t::iterator inner_edge_itr = graph->begin(); inner_edge_itr != graph->end(); ++inner_edge_itr) {
+   if (!(inner_edge_itr->first == edge_itr->first && inner_edge_itr->second == edge_itr->second)) {
     if (edge_itr->first == inner_edge_itr->first || edge_itr->first == inner_edge_itr->second
-        || edge_itr->second == inner_edge_itr->first || edge_itr->second == inner_edge_itr->second){
+        || edge_itr->second == inner_edge_itr->first || edge_itr->second == inner_edge_itr->second) {
      neighbours.push_back(inner_edge_itr);
     }
    }
@@ -134,21 +84,21 @@ shared_ptr<map<Edge_t, int, EdgeCompare_t> > find_suitable_sample() {
   vector<int> temp_colors(all_colors.size());
   copy(all_colors.begin(), all_colors.end(), temp_colors.begin());
   //this node and neighbours should be assigned unique values
-  for(const auto & nbr_itr:neighbours){
-   Edge_t temp_edge{nbr_itr->first,nbr_itr->second};
-   if (edge_coloring->find(temp_edge) != edge_coloring->end()){
-    temp_colors.erase(remove(temp_colors.begin(),temp_colors.end(),edge_coloring->at(temp_edge)),temp_colors.end());
+  for (const auto &nbr_itr:neighbours) {
+   Edge_t temp_edge{nbr_itr->first, nbr_itr->second};
+   if (edge_coloring->find(temp_edge) != edge_coloring->end()) {
+    temp_colors.erase(remove(temp_colors.begin(), temp_colors.end(), edge_coloring->at(temp_edge)), temp_colors.end());
    }
   }
   (*edge_coloring)[*edge_itr] = temp_colors.back();
-  if(edge_coloring->size() == graph->size()){
+  if (edge_coloring->size() == graph->size()) {
    perm_found = true;
    break;
   }
   temp_colors.pop_back();
   ++edge_itr;
  }
- if(perm_found) {
+ if (perm_found) {
   cout << "First sample found:\n";
   for (const auto &edge:*edge_coloring) {
    cout << edge.first.first << " to " << edge.first.second << " is: " << edge.second << "\n";
@@ -157,11 +107,75 @@ shared_ptr<map<Edge_t, int, EdgeCompare_t> > find_suitable_sample() {
  return edge_coloring;
 }
 
-int main(int argc, char **argv) {
+void gibbs(shared_ptr<map<Edge_t, int, EdgeCompare_t> > first_sample) {
 
+ std::default_random_engine generator;
+ std::uniform_real_distribution<double> distribution(0.0,1.0);
+ int total_rounds = burn_in + iterations;
+ while (total_rounds > 0) {
+  for (auto edge_val_itr = first_sample->begin(); edge_val_itr != first_sample->end();
+       ++edge_val_itr) {
+   //vector<map<Edge_t, int, EdgeCompare_t>::iterator> neghibours;
+   int sum_weight = 0;
+   for (auto inner_edge_val_itr = first_sample->begin(); inner_edge_val_itr != first_sample->end();
+        ++inner_edge_val_itr) {
+    if (inner_edge_val_itr != edge_val_itr) {
+     if(edge_val_itr->first.first == inner_edge_val_itr->first.first
+        || edge_val_itr->first.first == inner_edge_val_itr->first.second
+        || edge_val_itr->first.second == inner_edge_val_itr->first.first
+        || edge_val_itr->first.second == inner_edge_val_itr->first.second){
+      //neghibours.push_back(inner_edge_val_itr);
+      sum_weight += color_weights[inner_edge_val_itr->second - 1];
+     }
+    }
+    vector<double> probs(total_colors);
+    for(int color=0; color< total_colors;++color) {
+     probs[color] = exp(sum_weight+color_weights[color]);
+    }
+    //Normalize
+    double prob_sum = 0.0;
+    for(const auto &val:probs){
+     prob_sum+=val;
+    }
+    map<double_t ,int> rev_prob;
+    double cummulative_sum = 0.0;
+    for(int color = 0;color<total_colors;++total_colors){
+     probs[color] = (double)probs[color]/prob_sum;
+     cummulative_sum+=probs[color];
+     rev_prob[cummulative_sum] = color;
+    }
+    //it's already sorted
+    //divide the range 0-1
+    double slot = distribution(generator);
+    double prev_range = 0.0;
+    for(const auto &val:rev_prob){
+     if ( slot < val.first && slot >= prev_range){
+      cout << "updated the edge from " << edge_val_itr->first.first << " to " << edge_val_itr->first.second
+           << " from value: " <<  edge_val_itr->second << " to value: " << val.second << "\n";
+      edge_val_itr->second = val.second;
+      break;
+     }
+     else if (next(rev_prob.find(val.first),1) ==  rev_prob.end()){
+      cout << "updated the edge from " << edge_val_itr->first.first << " to " << edge_val_itr->first.second
+           << " from value: " <<  edge_val_itr->second << " to value: " << val.second << "\n";
+      edge_val_itr->second = val.second;
+      break;
+     }
+     prev_range = val.first;
+    }
+   }
+  }
+  if(total_rounds <= iterations) {
+
+  }
+  --total_rounds;
+ }
+}
+
+int main(int argc, char **argv) {
  read_input("../graph2.txt");
- find_suitable_sample();
- //assert(graph->size() == 3);
+ shared_ptr<map<Edge_t, int, EdgeCompare_t> > first_sample = find_suitable_sample();
+ gibbs(first_sample);
  return 0;
 }
 
