@@ -67,9 +67,8 @@ shared_ptr<map<Edge_t, int, EdgeCompare_t> > find_suitable_sample() {
            val = ++i;
           });
  bool perm_found = false;
- auto edge_coloring =
-  make_shared<map<Edge_t, int, EdgeCompare_t> >(map<Edge_t, int, EdgeCompare_t>());
- do {
+ auto edge_coloring = make_shared<map<Edge_t, int, EdgeCompare_t> >();
+/* do {
   auto edge_itr = graph->begin();
   vector<int> temp_colors(all_colors.size());
   copy(all_colors.begin(), all_colors.end(), temp_colors.begin());
@@ -84,7 +83,7 @@ shared_ptr<map<Edge_t, int, EdgeCompare_t> > find_suitable_sample() {
          || edge_itr->first == edge_coloring_itr->first.second
          || edge_itr->second == edge_coloring_itr->first.first
          || edge_itr->second == edge_coloring_itr->first.second) {
-      //it's neighbour
+      //its neighbour
       if (edge_coloring_itr->second == current_color) {
        neighbour_has_it = true;
        break;
@@ -108,6 +107,51 @@ shared_ptr<map<Edge_t, int, EdgeCompare_t> > find_suitable_sample() {
   cout << "First sample found:\n";
   for(const auto &edge:*edge_coloring){
    cout << edge.first.first << "to " << edge.first.second << "is: " << edge.second <<"\n";
+  }
+ }*/
+
+ //test
+/* (*edge_coloring)[Edge_t{1,2}] = 3;
+ if(edge_coloring->find(Edge_t{3,1}) != edge_coloring->end()){
+  cout << "found!\n";
+ }*/
+ //test
+ auto edge_itr = graph->begin();
+ while(!perm_found){
+/*  if(edge_coloring->find(*edge_itr) != edge_coloring->end()){
+   continue;
+  }*/
+  //find this nodes neighbours
+  vector<Graph_t ::iterator> neighbours;
+  for(Graph_t::iterator inner_edge_itr = graph->begin();inner_edge_itr!=graph->end();++inner_edge_itr){
+   if (!(inner_edge_itr->first == edge_itr->first && inner_edge_itr->second == edge_itr->second)){
+    if (edge_itr->first == inner_edge_itr->first || edge_itr->first == inner_edge_itr->second
+        || edge_itr->second == inner_edge_itr->first || edge_itr->second == inner_edge_itr->second){
+     neighbours.push_back(inner_edge_itr);
+    }
+   }
+  }
+  vector<int> temp_colors(all_colors.size());
+  copy(all_colors.begin(), all_colors.end(), temp_colors.begin());
+  //this node and neighbours should be assigned unique values
+  for(const auto & nbr_itr:neighbours){
+   Edge_t temp_edge{nbr_itr->first,nbr_itr->second};
+   if (edge_coloring->find(temp_edge) != edge_coloring->end()){
+    temp_colors.erase(remove(temp_colors.begin(),temp_colors.end(),edge_coloring->at(temp_edge)),temp_colors.end());
+   }
+  }
+  (*edge_coloring)[*edge_itr] = temp_colors.back();
+  if(edge_coloring->size() == graph->size()){
+   perm_found = true;
+   break;
+  }
+  temp_colors.pop_back();
+  ++edge_itr;
+ }
+ if(perm_found) {
+  cout << "First sample found:\n";
+  for (const auto &edge:*edge_coloring) {
+   cout << edge.first.first << " to " << edge.first.second << " is: " << edge.second << "\n";
   }
  }
  return edge_coloring;
