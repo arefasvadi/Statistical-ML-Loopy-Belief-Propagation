@@ -42,8 +42,6 @@ using Graph_t = set<Edge_t, EdgeCompare_t>;
 using Sample_t = map<Edge_t, int, EdgeCompare_t>;
 using Final_Table_t = vector<vector<vector<double >>>;
 static auto graph = make_shared<Graph_t>();
-static auto final_table = make_shared<Final_Table_t>();
-static shared_ptr<vector<Sample_t> > samples;
 
 void read_input(string graph_path,string weight_path) {
  ifstream graph_ifile(graph_path);
@@ -80,23 +78,14 @@ void read_input(string graph_path,string weight_path) {
   color_weights.push_back(stoi(line));
  }
  weights_ifile.close();
- 
- final_table->resize(vertex_size);
- for (int i = 0; i < vertex_size; ++i) {
-  (*final_table)[i] = vector<vector<double >>(vertex_size);
-  for (int j = 0; j < vertex_size; ++j) {
-   (*final_table)[i][j] = vector<double>(total_colors, 0.0);
-  }
- }
- 
 }
 
 shared_ptr<Sample_t> find_suitable_sample() {
  vector<int> all_colors(total_colors, 0);
+ int current_color = 0;
  for_each(all_colors.begin(), all_colors.end(),
-          [](int &val) {
-           static int i = 0;
-           val = ++i;
+          [&](int &val) {
+           val = ++current_color;
           });
  bool perm_found = false;
  auto edge_coloring = make_shared<map<Edge_t, int, EdgeCompare_t> >();
@@ -130,23 +119,33 @@ shared_ptr<Sample_t> find_suitable_sample() {
   ++edge_itr;
  }
  if (perm_found) {
-  cout << "First sample found:\n";
+  cout << "\tFirst sample found:\n";
   for (const auto &edge:*edge_coloring) {
-   cout << edge.first.first << " to " << edge.first.second << " is: " << edge.second << "\n";
+   cout << "\t" << edge.first.first << " to " << edge.first.second << " is: " << edge.second << "\n";
   }
  }
  return edge_coloring;
 }
 
-shared_ptr<vector<Sample_t> > gibbs(shared_ptr<Sample_t> first_sample) {
+shared_ptr<Final_Table_t> gibbs(shared_ptr<Sample_t> first_sample) {
  
- samples = make_shared<vector<Sample_t> >();
+ auto samples = make_shared<vector<Sample_t> >();
+ auto final_table = make_shared<Final_Table_t>();
  std::random_device r;
  std::default_random_engine generator{r()};
  std::uniform_real_distribution<double> distribution(0.0, 1.0);
  int total_rounds = burn_in + iterations;
+ 
+ final_table->resize(vertex_size);
+ for (int i = 0; i < vertex_size; ++i) {
+  (*final_table)[i] = vector<vector<double >>(vertex_size);
+  for (int j = 0; j < vertex_size; ++j) {
+   (*final_table)[i][j] = vector<double>(total_colors, 0.0);
+  }
+ }
+ 
  while (total_rounds > 0) {
-  cout << "Iteration: " << (burn_in + iterations - total_rounds + 1) << "\n";
+//  cout << "Iteration: " << (burn_in + iterations - total_rounds + 1) << "\n";
   for (auto edge_itr = first_sample->begin(); edge_itr != first_sample->end() && total_rounds > 0; ++edge_itr) {
    set<int> neghibour_colors;
    int sum_weight = 0;
@@ -190,13 +189,13 @@ shared_ptr<vector<Sample_t> > gibbs(shared_ptr<Sample_t> first_sample) {
    double prev_range = 0.0;
    for (const auto &val:rev_prob) {
     if (slot < val.first && slot >= prev_range) {
-     cout << "\tupdated the edge from " << edge_itr->first.first << " to " << edge_itr->first.second
-          << " from value: " << edge_itr->second << " to value: " << val.second << "\n";
+     /*cout << "\tupdated the edge from " << edge_itr->first.first << " to " << edge_itr->first.second
+          << " from value: " << edge_itr->second << " to value: " << val.second << "\n";*/
      edge_itr->second = val.second;
      break;
     } else if (next(rev_prob.find(val.first), 1) == rev_prob.end()) {
-     cout << "\tupdated the edge from " << edge_itr->first.first << " to " << edge_itr->first.second
-          << " from value: " << edge_itr->second << " to value: " << val.second << "\n";
+     /*cout << "\tupdated the edge from " << edge_itr->first.first << " to " << edge_itr->first.second
+          << " from value: " << edge_itr->second << " to value: " << val.second << "\n";*/
      edge_itr->second = val.second;
      break;
     }
@@ -213,12 +212,12 @@ shared_ptr<vector<Sample_t> > gibbs(shared_ptr<Sample_t> first_sample) {
    --total_rounds;
   }
  }
- cout << samples->size() << " samples generated!\n";
- return samples;
+ cout << "\t" << samples->size() << " samples generated!\n";
+ return final_table;
 }
 
-void fill_print_table() {
- cout << "\n****\n";
+void fill_print_table(shared_ptr<Final_Table_t> final_table) {
+// cout << "\n****\n";
  for (auto edge_itr = graph->begin(); edge_itr != graph->end(); ++edge_itr) {
 //  Edge_t current_edge = *edge_itr;
   double prob_sum = 0.0;
@@ -238,17 +237,25 @@ void fill_print_table() {
 }
 
 int main(int argc, char **argv) {
- if (argc != 5){
-  cout << "Correct usage requires 4 parameters:\n"
-   "\t./gibbs-sampler \"graph_file\" \"weights_file\" \"num_burnins\" \"num_iterations\"";
+ if (argc != 3){
+  cout << "Correct usage requires 2 parameters:\n"
+   "\t./gibbs-sampler \"graph_file\" \"weights_file\"";
   exit(1);
  }
- burn_in = stoi(string(argv[3]));
- iterations = stoi(string(argv[4]));
+ vector<int> params = {1 << 6,1 << 10, 1 << 14, 1 << 18};
  read_input(string(argv[1]),string(argv[2]));
- auto first_sample = find_suitable_sample();
- samples = gibbs(first_sample);
- fill_print_table();
+ for(int i=0;i< params.size();++i){
+  for(int j=0;j< params.size();++j) {
+   burn_in = params[i];
+   iterations = params[j];
+   cout << "\nRunning test with parameters burnin = " << burn_in
+        << " and iterations = " << iterations << "\n";
+   auto first_sample = find_suitable_sample();
+   auto final_table = gibbs(first_sample);
+   fill_print_table(final_table);
+   cout << "====================================================";
+  }
+ }
  return 0;
 }
 
