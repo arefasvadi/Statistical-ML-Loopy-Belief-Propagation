@@ -20,6 +20,7 @@ static int total_colors = 3;
 static int iterations = 1000;
 static int burn_in = 5000;
 static vector<double> color_weights = {1, 2, 3};
+static int vertex_size = 0;
 
 using Edge_t = pair<int, int>;
 using EdgeCompare_t = struct edge_compare {
@@ -34,8 +35,13 @@ using EdgeCompare_t = struct edge_compare {
 };
 using Probabilities_t = map<Edge_t, vector<double>, EdgeCompare_t>;
 using Graph_t = set<Edge_t, EdgeCompare_t>;
-
+using Sample_t = map<Edge_t, int, EdgeCompare_t>;
+using Final_Table_t = vector<vector<vector<double >>>;
 static auto graph = make_shared<Graph_t>();
+static auto final_table = make_shared<Final_Table_t>();
+static shared_ptr<vector<Sample_t> > samples;
+
+void fill_up_table();
 
 void read_input(string path) {
  ifstream ifile(path);
@@ -56,11 +62,19 @@ void read_input(string path) {
     graph->insert(Edge_t{current_vertex, inner_vertex});
    }
   }
+  vertex_size = inner_vertex;
  }
  ifile.close();
+ final_table->resize(vertex_size);
+ for (int i = 0; i < vertex_size; ++i) {
+  (*final_table)[i] = vector<vector<double >>(vertex_size);
+  for (int j = 0; j < vertex_size; ++j) {
+   (*final_table)[i][j] = vector<double>(total_colors, 0.0);
+  }
+ }
 }
 
-shared_ptr<map<Edge_t, int, EdgeCompare_t> > find_suitable_sample() {
+shared_ptr<Sample_t> find_suitable_sample() {
  vector<int> all_colors(total_colors, 0);
  for_each(all_colors.begin(), all_colors.end(),
           [](int &val) {
@@ -107,75 +121,110 @@ shared_ptr<map<Edge_t, int, EdgeCompare_t> > find_suitable_sample() {
  return edge_coloring;
 }
 
-void gibbs(shared_ptr<map<Edge_t, int, EdgeCompare_t> > first_sample) {
-
+shared_ptr<vector<Sample_t> > gibbs(shared_ptr<Sample_t> first_sample) {
+ 
+ samples = make_shared<vector<Sample_t> >();
  std::default_random_engine generator;
- std::uniform_real_distribution<double> distribution(0.0,1.0);
+ std::uniform_real_distribution<double> distribution(0.0, 1.0);
  int total_rounds = burn_in + iterations;
  while (total_rounds > 0) {
-  for (auto edge_val_itr = first_sample->begin(); edge_val_itr != first_sample->end();
-       ++edge_val_itr) {
-   //vector<map<Edge_t, int, EdgeCompare_t>::iterator> neghibours;
+  cout << "Iteration: " << (burn_in + iterations - total_rounds + 1) << "\n";
+  for (auto edge_itr = first_sample->begin(); edge_itr != first_sample->end() && total_rounds > 0; ++edge_itr) {
+   set<int> neghibour_colors;
    int sum_weight = 0;
-   for (auto inner_edge_val_itr = first_sample->begin(); inner_edge_val_itr != first_sample->end();
-        ++inner_edge_val_itr) {
-    if (inner_edge_val_itr != edge_val_itr) {
-     if(edge_val_itr->first.first == inner_edge_val_itr->first.first
-        || edge_val_itr->first.first == inner_edge_val_itr->first.second
-        || edge_val_itr->first.second == inner_edge_val_itr->first.first
-        || edge_val_itr->first.second == inner_edge_val_itr->first.second){
-      //neghibours.push_back(inner_edge_val_itr);
-      sum_weight += color_weights[inner_edge_val_itr->second - 1];
+   for (auto inner_edge_itr = first_sample->begin(); inner_edge_itr != first_sample->end(); ++inner_edge_itr) {
+    if (inner_edge_itr != edge_itr) {
+     if (edge_itr->first.first == inner_edge_itr->first.first
+         || edge_itr->first.first == inner_edge_itr->first.second
+         || edge_itr->first.second == inner_edge_itr->first.first
+         || edge_itr->first.second == inner_edge_itr->first.second) {
+      neghibour_colors.insert(inner_edge_itr->second);
+      sum_weight += color_weights[inner_edge_itr->second - 1];
      }
-    }
-    vector<double> probs(total_colors);
-    for(int color=0; color< total_colors;++color) {
-     probs[color] = exp(sum_weight+color_weights[color]);
-    }
-    //Normalize
-    double prob_sum = 0.0;
-    for(const auto &val:probs){
-     prob_sum+=val;
-    }
-    map<double_t ,int> rev_prob;
-    double cummulative_sum = 0.0;
-    for(int color = 0;color<total_colors;++total_colors){
-     probs[color] = (double)probs[color]/prob_sum;
-     cummulative_sum+=probs[color];
-     rev_prob[cummulative_sum] = color;
-    }
-    //it's already sorted
-    //divide the range 0-1
-    double slot = distribution(generator);
-    double prev_range = 0.0;
-    for(const auto &val:rev_prob){
-     if ( slot < val.first && slot >= prev_range){
-      cout << "updated the edge from " << edge_val_itr->first.first << " to " << edge_val_itr->first.second
-           << " from value: " <<  edge_val_itr->second << " to value: " << val.second << "\n";
-      edge_val_itr->second = val.second;
-      break;
-     }
-     else if (next(rev_prob.find(val.first),1) ==  rev_prob.end()){
-      cout << "updated the edge from " << edge_val_itr->first.first << " to " << edge_val_itr->first.second
-           << " from value: " <<  edge_val_itr->second << " to value: " << val.second << "\n";
-      edge_val_itr->second = val.second;
-      break;
-     }
-     prev_range = val.first;
     }
    }
+   vector<double> probs(total_colors);
+   for (int color = 0; color < total_colors; ++color) {
+    if (neghibour_colors.find(color + 1) != neghibour_colors.end()) {
+     probs[color] = 0.0;
+    } else {
+     probs[color] = exp(sum_weight + color_weights[color]);
+    }
+   }
+   //Normalize
+   double prob_sum = 0.0;
+   for (const auto &val:probs) {
+    prob_sum += val;
+   }
+   map<double_t, int> rev_prob;
+   double cummulative_sum = 0.0;
+   for (int color = 0; color < total_colors; ++color) {
+    if (probs[color] == 0.0) {
+     continue;
+    }
+    probs[color] = (double) probs[color] / prob_sum;
+    cummulative_sum += probs[color];
+    rev_prob[cummulative_sum] = color + 1;
+   }
+   //it's already sorted
+   //divide the range 0 - 1
+   double slot = distribution(generator);
+   double prev_range = 0.0;
+   for (const auto &val:rev_prob) {
+    if (slot < val.first && slot >= prev_range) {
+     cout << "\tupdated the edge from " << edge_itr->first.first << " to " << edge_itr->first.second
+          << " from value: " << edge_itr->second << " to value: " << val.second << "\n";
+     edge_itr->second = val.second;
+     break;
+    } else if (next(rev_prob.find(val.first), 1) == rev_prob.end()) {
+     cout << "\tupdated the edge from " << edge_itr->first.first << " to " << edge_itr->first.second
+          << " from value: " << edge_itr->second << " to value: " << val.second << "\n";
+     edge_itr->second = val.second;
+     break;
+    }
+    prev_range = val.first;
+   }
+   if (total_rounds <= iterations) {
+    samples->push_back(*first_sample);
+    //increment in table!
+    for(const auto &edge:*first_sample) {
+     (*final_table)[edge.first.first-1][edge.first.second-1][edge.second-1] += 1.0;
+     (*final_table)[edge.first.second-1][edge.first.first-1][edge.second-1] += 1.0;
+    }
+   }
+   --total_rounds;
   }
-  if(total_rounds <= iterations) {
+ }
+ cout << samples->size() << " samples generated!\n";
+ return samples;
+}
 
+void fill_print_table() {
+ cout << "\n****\n";
+ for (auto edge_itr = graph->begin(); edge_itr != graph->end(); ++edge_itr) {
+//  Edge_t current_edge = *edge_itr;
+  double prob_sum = 0.0;
+  for(int color=0;color<total_colors;++color) {
+   prob_sum += (*final_table)[edge_itr->first-1][edge_itr->second-1][color];
   }
-  --total_rounds;
+  for(int color=0;color<total_colors;++color) {
+   (*final_table)[edge_itr->first-1][edge_itr->second-1][color] =
+    (*final_table)[edge_itr->first-1][edge_itr->second-1][color]/prob_sum;
+   (*final_table)[edge_itr->second-1][edge_itr->first-1][color] =
+    (*final_table)[edge_itr->first-1][edge_itr->second-1][color];
+   cout << "\tedge between " << edge_itr->first << " and " << edge_itr->second
+        << " with value " << color+1 << " has probability of: "
+        << (*final_table)[edge_itr->first-1][edge_itr->second-1][color] << "\n";
+  }
  }
 }
 
+
 int main(int argc, char **argv) {
  read_input("../graph2.txt");
- shared_ptr<map<Edge_t, int, EdgeCompare_t> > first_sample = find_suitable_sample();
- gibbs(first_sample);
+ auto first_sample = find_suitable_sample();
+ samples = gibbs(first_sample);
+ fill_print_table();
  return 0;
 }
 
