@@ -229,9 +229,11 @@ void fill_print_table(shared_ptr<Final_Table_t> final_table) {
     (*final_table)[edge_itr->first-1][edge_itr->second-1][color]/prob_sum;
    (*final_table)[edge_itr->second-1][edge_itr->first-1][color] =
     (*final_table)[edge_itr->first-1][edge_itr->second-1][color];
-   cout << "\tedge between " << edge_itr->first << " and " << edge_itr->second
-        << " with value " << color+1 << " has probability of: "
-        << (*final_table)[edge_itr->first-1][edge_itr->second-1][color] << "\n";
+   if(edge_itr->first == 1 && edge_itr->second == 4 && color ==3) {
+    cout << "\tedge between " << edge_itr->first << " and " << edge_itr->second
+         << " with value " << color + 1 << " has probability of: "
+         << (*final_table)[edge_itr->first - 1][edge_itr->second - 1][color] << "\n";
+   }
   }
  }
 }
