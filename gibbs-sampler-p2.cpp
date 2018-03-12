@@ -21,6 +21,7 @@ static int iterations = 0;
 static int burn_in = 0;
 static vector<double> color_weights;
 static int vertex_size = 0;
+static std::random_device r;
 
 using Edge_t = pair<int, int>;
 using EdgeCompare_t = struct edge_compare {
@@ -131,7 +132,6 @@ shared_ptr<Final_Table_t> gibbs(shared_ptr<Sample_t> first_sample) {
  
  auto samples = make_shared<vector<Sample_t> >();
  auto final_table = make_shared<Final_Table_t>();
- std::random_device r;
  std::default_random_engine generator{r()};
  std::uniform_real_distribution<double> distribution(0.0, 1.0);
  int total_rounds = burn_in + iterations;
@@ -166,6 +166,7 @@ shared_ptr<Final_Table_t> gibbs(shared_ptr<Sample_t> first_sample) {
      probs[color] = 0.0;
     } else {
      probs[color] = exp(sum_weight + color_weights[color]);
+//     probs[color] = exp(color_weights[color]);
     }
    }
    //Normalize
